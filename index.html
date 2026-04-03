@@ -15,8 +15,6 @@
 
     <script type="text/babel" data-type="module">
         const { useState, useEffect, useRef } = React;
-
-        // Importação direta dos módulos Firebase (CDN moderna)
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
         import { getFirestore, collection, doc, addDoc, onSnapshot, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
@@ -42,46 +40,48 @@
             const [isUploading, setIsUploading] = useState(false);
             const fileInputRef = useRef(null);
 
-            // Carrega os ícones da biblioteca Lucide
-            useEffect(() => {
-                if (window.lucide) window.lucide.createIcons();
-            });
+            useEffect(() => { if (window.lucide) window.lucide.createIcons(); });
 
-            // Autenticação
             useEffect(() => {
                 const unsubscribe = onAuthStateChanged(auth, (u) => {
-                    if (!u) {
-                        signInAnonymously(auth).catch(console.error);
-                    }
+                    if (!u) signInAnonymously(auth).catch(console.error);
                     setUser(u);
                 });
                 return () => unsubscribe();
             }, []);
 
-            // Escuta o banco de dados em tempo real
             useEffect(() => {
                 if (!user) return;
                 const q = collection(db, 'orders');
-                const unsubscribe = onSnapshot(q, (snapshot) => {
+                return onSnapshot(q, (snapshot) => {
                     const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-                    const sorted = data.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-                    setOrders(sorted);
+                    setOrders(data.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
                     if (selectedOrder) {
-                        const updated = sorted.find(o => o.id === selectedOrder.id);
+                        const updated = data.find(o => o.id === selectedOrder.id);
                         if (updated) setSelectedOrder(updated);
                     }
-                }, (error) => {
-                    console.error("Erro no Firestore:", error);
                 });
-                return () => unsubscribe();
             }, [user, selectedOrder?.id]);
+
+            const updateOrderField = async (field, value) => {
+                const orderRef = doc(db, 'orders', selectedOrder.id);
+                await updateDoc(orderRef, { [field]: value });
+            };
+
+            const updatePhotoDesc = async (photoId, text) => {
+                const updatedPhotos = selectedOrder.photos.map(p => 
+                    p.id === photoId ? { ...p, description: text } : p
+                );
+                const orderRef = doc(db, 'orders', selectedOrder.id);
+                await updateDoc(orderRef, { photos: updatedPhotos });
+            };
 
             const compressAndUpload = async (e) => {
                 const files = Array.from(e.target.files);
                 if (files.length === 0) return;
                 setIsUploading(true);
-                
                 const newPhotos = [];
+
                 for (const file of files) {
                     const base64 = await new Promise(r => {
                         const reader = new FileReader();
@@ -101,45 +101,39 @@
                             else { if (h > max) { w *= max / h; h = max; } }
                             canvas.width = w; canvas.height = h;
                             ctx.drawImage(img, 0, 0, w, h);
-                            r(canvas.toDataURL('image/jpeg', 0.7));
+                            r(canvas.toDataURL('image/jpeg', 0.6));
                         };
                     });
-                    newPhotos.push({ id: Math.random().toString(36), url: compressed });
+                    newPhotos.push({ id: Math.random().toString(36), url: compressed, description: "" });
                 }
 
-                try {
-                    const orderRef = doc(db, 'orders', selectedOrder.id);
-                    await updateDoc(orderRef, { 
-                        photos: [...(selectedOrder.photos || []), ...newPhotos] 
-                    });
-                } catch (err) {
-                    alert("Erro: Verifique as Regras (Rules) no Firebase!");
-                }
+                const orderRef = doc(db, 'orders', selectedOrder.id);
+                await updateDoc(orderRef, { photos: [...(selectedOrder.photos || []), ...newPhotos] });
                 setIsUploading(false);
             };
 
-            if (!user) return <div className="h-screen flex items-center justify-center font-bold text-blue-600">Conectando...</div>;
+            if (!user) return <div className="h-screen flex items-center justify-center font-bold">Iniciando sistema...</div>;
 
             return (
                 <div className="min-h-screen pb-10">
-                    <header className="bg-blue-600 text-white p-4 shadow-lg flex justify-between items-center sticky top-0 z-50">
+                    <header className="bg-slate-800 text-white p-4 shadow-lg flex justify-between items-center sticky top-0 z-50">
                         <h1 className="font-bold flex items-center gap-2"><i data-lucide="wrench"></i> OS OFICINA</h1>
-                        {view !== 'list' && (
-                            <button onClick={() => setView('list')} className="p-2 bg-blue-700 rounded-full">
-                                <i data-lucide="arrow-left"></i>
-                            </button>
-                        )}
+                        {view !== 'list' && <button onClick={() => setView('list')} className="p-2 bg-slate-700 rounded-full"><i data-lucide="arrow-left"></i></button>}
                     </header>
 
                     <main className="p-4 max-w-xl mx-auto">
                         {view === 'list' ? (
                             <div className="space-y-4">
-                                <button onClick={() => setView('create')} className="w-full bg-green-600 text-white p-4 rounded-xl font-bold shadow-lg">Nova Pasta de Serviço</button>
+                                <button onClick={() => setView('create')} className="w-full bg-blue-600 text-white p-4 rounded-xl font-bold shadow-lg">Abrir Nova O.S.</button>
                                 {orders.map(o => (
                                     <div key={o.id} onClick={() => { setSelectedOrder(o); setView('detail'); }} className="bg-white p-4 rounded-xl shadow border border-gray-200">
-                                        <div className="text-blue-600 font-black text-xs">#{o.osNumber}</div>
-                                        <div className="text-lg font-bold text-gray-800">{o.client}</div>
-                                        <div className="text-xs text-gray-400 mt-1 flex items-center gap-1"><i data-lucide="image" size="12"></i> {o.photos?.length || 0} fotos</div>
+                                        <div className="flex justify-between items-start">
+                                            <div>
+                                                <div className="text-blue-600 font-black text-xs">#{o.osNumber}</div>
+                                                <div className="text-lg font-bold text-gray-800">{o.client}</div>
+                                            </div>
+                                            <div className="text-[10px] text-gray-400">{new Date(o.createdAt).toLocaleDateString()}</div>
+                                        </div>
                                     </div>
                                 ))}
                             </div>
@@ -149,31 +143,54 @@
                                 const fd = new FormData(e.target);
                                 await addDoc(collection(db, 'orders'), {
                                     osNumber: fd.get('os'), client: fd.get('client'),
-                                    createdAt: new Date().toISOString(), photos: []
+                                    serviceNotes: "", createdAt: new Date().toISOString(), photos: []
                                 });
                                 setView('list');
                             }}>
-                                <h2 className="text-xl font-bold text-center">Abrir OS</h2>
-                                <input name="os" placeholder="Nº da OS" className="w-full border p-3 rounded-lg" required />
+                                <h2 className="text-xl font-bold text-center">Cadastro de O.S.</h2>
+                                <input name="os" placeholder="Nº da O.S." className="w-full border p-3 rounded-lg" required />
                                 <input name="client" placeholder="Nome do Cliente" className="w-full border p-3 rounded-lg" required />
-                                <button className="w-full bg-blue-600 text-white p-4 rounded-xl font-bold">Criar Pasta</button>
+                                <button className="w-full bg-blue-600 text-white p-4 rounded-xl font-bold">Criar</button>
                             </form>
                         ) : (
                             <div className="space-y-6">
-                                <div className="bg-white p-4 rounded-xl shadow border-l-8 border-blue-500">
+                                <div className="bg-white p-4 rounded-xl shadow border-l-8 border-blue-600">
                                     <h2 className="text-2xl font-bold">{selectedOrder.client}</h2>
-                                    <p className="text-gray-500">OS: {selectedOrder.osNumber}</p>
+                                    <p className="text-gray-500 font-bold">O.S. #{selectedOrder.osNumber}</p>
                                 </div>
-                                <button disabled={isUploading} onClick={() => fileInputRef.current.click()} className="w-full bg-blue-600 text-white p-4 rounded-xl font-bold flex justify-center items-center gap-2 shadow-lg active:scale-95 transition-all">
-                                    {isUploading ? "Processando..." : "Anexar Fotos"}
-                                </button>
-                                <input type="file" multiple accept="image/*" className="hidden" ref={fileInputRef} onChange={compressAndUpload} />
-                                <div className="grid gap-4">
+
+                                <div className="bg-white p-4 rounded-xl shadow space-y-2">
+                                    <label className="text-xs font-black text-gray-400 uppercase">Descrição Geral do Serviço</label>
+                                    <textarea 
+                                        className="w-full border-0 bg-gray-50 p-3 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none min-h-[100px]"
+                                        placeholder="Digite aqui o que foi feito no veículo..."
+                                        value={selectedOrder.serviceNotes || ""}
+                                        onChange={(e) => updateOrderField("serviceNotes", e.target.value)}
+                                    />
+                                </div>
+
+                                <div className="flex justify-between items-center">
+                                    <h3 className="font-bold flex items-center gap-2"><i data-lucide="camera"></i> Fotos do Serviço</h3>
+                                    <button disabled={isUploading} onClick={() => fileInputRef.current.click()} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow flex items-center gap-2">
+                                        {isUploading ? "..." : <i data-lucide="plus" size="16"></i>} Anexar
+                                    </button>
+                                    <input type="file" multiple accept="image/*" className="hidden" ref={fileInputRef} onChange={compressAndUpload} />
+                                </div>
+
+                                <div className="grid gap-6">
                                     {selectedOrder.photos?.map(p => (
-                                        <div key={p.id} className="bg-white rounded-xl overflow-hidden shadow border border-gray-100">
-                                            <img src={p.url} className="w-full h-auto" />
-                                            <div className="p-2 text-right">
-                                                <a href={p.url} download className="text-blue-600 text-xs font-bold">BAIXAR FOTO</a>
+                                        <div key={p.id} className="bg-white rounded-2xl overflow-hidden shadow-md border border-gray-100">
+                                            <img src={p.url} className="w-full h-auto bg-black" />
+                                            <div className="p-3 space-y-2">
+                                                <input 
+                                                    className="w-full text-sm border-b border-gray-100 focus:border-blue-500 outline-none p-1"
+                                                    placeholder="Legenda da foto (ex: Peça trocada)"
+                                                    value={p.description || ""}
+                                                    onChange={(e) => updatePhotoDesc(p.id, e.target.value)}
+                                                />
+                                                <div className="text-right">
+                                                    <a href={p.url} download className="text-[10px] font-black text-blue-600">BAIXAR ORIGINAL</a>
+                                                </div>
                                             </div>
                                         </div>
                                     ))}
