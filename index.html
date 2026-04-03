@@ -10,14 +10,14 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
 </head>
-<body class="bg-gray-100">
+<body class="bg-gray-50">
     <div id="root"></div>
 
     <script type="text/babel" data-type="module">
         const { useState, useEffect, useRef } = React;
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-        import { getFirestore, collection, doc, addDoc, onSnapshot, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { getFirestore, collection, doc, addDoc, onSnapshot, updateDoc, getDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyAqGohWqv5OIWVzSlwtBtoRSOpVzut5Cuc",
@@ -55,17 +55,32 @@
                 const q = collection(db, 'orders');
                 return onSnapshot(q, (snapshot) => {
                     const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-                    setOrders(data.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
+                    const sortedData = data.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+                    setOrders(sortedData);
+                    
                     if (selectedOrder) {
-                        const updated = data.find(o => o.id === selectedOrder.id);
+                        const updated = sortedData.find(o => o.id === selectedOrder.id);
                         if (updated) setSelectedOrder(updated);
+                        else { setView('list'); setSelectedOrder(null); }
                     }
                 });
             }, [user, selectedOrder?.id]);
 
+            const deleteOrder = async (id) => {
+                if (window.confirm("ATENÇÃO: Isso apagará todas as fotos e informações desta O.S. permanentemente. Deseja continuar?")) {
+                    try {
+                        await deleteDoc(doc(db, 'orders', id));
+                        setView('list');
+                        setSelectedOrder(null);
+                    } catch (e) { alert("Erro ao excluir serviço."); }
+                }
+            };
+
             const updateOrderField = async (field, value) => {
-                const orderRef = doc(db, 'orders', selectedOrder.id);
-                await updateDoc(orderRef, { [field]: value });
+                try {
+                    const orderRef = doc(db, 'orders', selectedOrder.id);
+                    await updateDoc(orderRef, { [field]: value });
+                } catch (e) { console.error(e); }
             };
 
             const updatePhotoDesc = async (photoId, text) => {
@@ -78,67 +93,76 @@
 
             const compressAndUpload = async (e) => {
                 const files = Array.from(e.target.files);
-                if (files.length === 0) return;
+                if (files.length === 0 || !selectedOrder) return;
                 setIsUploading(true);
-                const newPhotos = [];
+                const newPhotosList = [];
 
-                for (const file of files) {
-                    const base64 = await new Promise(r => {
-                        const reader = new FileReader();
-                        reader.onload = () => r(reader.result);
-                        reader.readAsDataURL(file);
-                    });
-                    
-                    const img = new Image();
-                    img.src = base64;
-                    const compressed = await new Promise(r => {
-                        img.onload = () => {
-                            const canvas = document.createElement('canvas');
-                            const ctx = canvas.getContext('2d');
-                            const max = 800;
-                            let w = img.width, h = img.height;
-                            if (w > h) { if (w > max) { h *= max / w; w = max; } }
-                            else { if (h > max) { w *= max / h; h = max; } }
-                            canvas.width = w; canvas.height = h;
-                            ctx.drawImage(img, 0, 0, w, h);
-                            r(canvas.toDataURL('image/jpeg', 0.6));
-                        };
-                    });
-                    newPhotos.push({ id: Math.random().toString(36), url: compressed, description: "" });
-                }
-
-                const orderRef = doc(db, 'orders', selectedOrder.id);
-                await updateDoc(orderRef, { photos: [...(selectedOrder.photos || []), ...newPhotos] });
-                setIsUploading(false);
+                try {
+                    for (const file of files) {
+                        const base64 = await new Promise(r => {
+                            const reader = new FileReader();
+                            reader.onload = () => r(reader.result);
+                            reader.readAsDataURL(file);
+                        });
+                        
+                        const img = new Image();
+                        img.src = base64;
+                        const compressed = await new Promise(r => {
+                            img.onload = () => {
+                                const canvas = document.createElement('canvas');
+                                const ctx = canvas.getContext('2d');
+                                const max = 800;
+                                let w = img.width, h = img.height;
+                                if (w > h) { if (w > max) { h *= max / w; w = max; } }
+                                else { if (h > max) { w *= max / h; h = max; } }
+                                canvas.width = w; canvas.height = h;
+                                ctx.drawImage(img, 0, 0, w, h);
+                                r(canvas.toDataURL('image/jpeg', 0.6));
+                            };
+                        });
+                        newPhotosList.push({ id: Math.random().toString(36).substr(2, 9), url: compressed, description: "" });
+                    }
+                    const orderRef = doc(db, 'orders', selectedOrder.id);
+                    const docSnap = await getDoc(orderRef);
+                    const currentPhotos = docSnap.exists() ? (docSnap.data().photos || []) : [];
+                    await updateDoc(orderRef, { photos: [...currentPhotos, ...newPhotosList] });
+                } catch (err) { alert("Erro no envio."); }
+                finally { setIsUploading(false); }
             };
 
-            if (!user) return <div className="h-screen flex items-center justify-center font-bold">Iniciando sistema...</div>;
+            if (!user) return <div className="h-screen flex items-center justify-center font-bold text-blue-600 italic">Oficina Cloud v2.0...</div>;
 
             return (
                 <div className="min-h-screen pb-10">
-                    <header className="bg-slate-800 text-white p-4 shadow-lg flex justify-between items-center sticky top-0 z-50">
-                        <h1 className="font-bold flex items-center gap-2"><i data-lucide="wrench"></i> OS OFICINA</h1>
-                        {view !== 'list' && <button onClick={() => setView('list')} className="p-2 bg-slate-700 rounded-full"><i data-lucide="arrow-left"></i></button>}
+                    <header className="bg-slate-900 text-white p-4 shadow-xl flex justify-between items-center sticky top-0 z-50 border-b border-slate-700">
+                        <h1 className="font-bold flex items-center gap-2 tracking-tighter"><i data-lucide="wrench" className="text-blue-400"></i> OS OFICINA</h1>
+                        {view !== 'list' && (
+                            <button onClick={() => setView('list')} className="p-2 bg-slate-800 rounded-lg"><i data-lucide="arrow-left" size="20"></i></button>
+                        )}
                     </header>
 
                     <main className="p-4 max-w-xl mx-auto">
                         {view === 'list' ? (
                             <div className="space-y-4">
-                                <button onClick={() => setView('create')} className="w-full bg-blue-600 text-white p-4 rounded-xl font-bold shadow-lg">Abrir Nova O.S.</button>
+                                <button onClick={() => setView('create')} className="w-full bg-blue-600 text-white p-4 rounded-2xl font-black shadow-lg shadow-blue-200 active:scale-95 transition-all flex items-center justify-center gap-2 uppercase text-sm tracking-widest">
+                                    <i data-lucide="plus-circle" size="18"></i> Abrir Nova O.S.
+                                </button>
                                 {orders.map(o => (
-                                    <div key={o.id} onClick={() => { setSelectedOrder(o); setView('detail'); }} className="bg-white p-4 rounded-xl shadow border border-gray-200">
-                                        <div className="flex justify-between items-start">
-                                            <div>
-                                                <div className="text-blue-600 font-black text-xs">#{o.osNumber}</div>
-                                                <div className="text-lg font-bold text-gray-800">{o.client}</div>
+                                    <div key={o.id} onClick={() => { setSelectedOrder(o); setView('detail'); }} className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 active:bg-gray-50 flex justify-between items-center group">
+                                        <div className="flex-1">
+                                            <div className="text-blue-500 font-black text-[10px] uppercase tracking-widest mb-1">OS #{o.osNumber}</div>
+                                            <div className="text-lg font-bold text-slate-800 leading-tight">{o.client}</div>
+                                            <div className="text-[10px] text-gray-400 mt-2 font-semibold flex items-center gap-2">
+                                                <span className="bg-gray-100 px-2 py-0.5 rounded text-gray-500 underline decoration-blue-300">{new Date(o.createdAt).toLocaleDateString()}</span>
+                                                <span className="flex items-center gap-1"><i data-lucide="image" size="10"></i> {o.photos?.length || 0} fotos</span>
                                             </div>
-                                            <div className="text-[10px] text-gray-400">{new Date(o.createdAt).toLocaleDateString()}</div>
                                         </div>
+                                        <i data-lucide="chevron-right" className="text-gray-300 group-active:text-blue-500"></i>
                                     </div>
                                 ))}
                             </div>
                         ) : view === 'create' ? (
-                            <form className="bg-white p-6 rounded-xl shadow-lg space-y-4" onSubmit={async (e) => {
+                            <form className="bg-white p-8 rounded-3xl shadow-xl space-y-5 border border-gray-50" onSubmit={async (e) => {
                                 e.preventDefault();
                                 const fd = new FormData(e.target);
                                 await addDoc(collection(db, 'orders'), {
@@ -147,53 +171,87 @@
                                 });
                                 setView('list');
                             }}>
-                                <h2 className="text-xl font-bold text-center">Cadastro de O.S.</h2>
-                                <input name="os" placeholder="Nº da O.S." className="w-full border p-3 rounded-lg" required />
-                                <input name="client" placeholder="Nome do Cliente" className="w-full border p-3 rounded-lg" required />
-                                <button className="w-full bg-blue-600 text-white p-4 rounded-xl font-bold">Criar</button>
+                                <h2 className="text-2xl font-black text-slate-800 text-center mb-2">Dados do Serviço</h2>
+                                <div>
+                                    <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Número da Ordem</label>
+                                    <input name="os" placeholder="Ex: 2024-001" className="w-full border-2 border-gray-100 p-4 rounded-xl outline-none focus:border-blue-500 transition-colors font-bold" required />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Cliente / Veículo</label>
+                                    <input name="client" placeholder="Ex: João - Celta Prata" className="w-full border-2 border-gray-100 p-4 rounded-xl outline-none focus:border-blue-500 transition-colors font-bold" required />
+                                </div>
+                                <button className="w-full bg-slate-900 text-white p-5 rounded-2xl font-black shadow-lg active:scale-95 transition-all uppercase tracking-widest">Registrar no Sistema</button>
                             </form>
                         ) : (
                             <div className="space-y-6">
-                                <div className="bg-white p-4 rounded-xl shadow border-l-8 border-blue-600">
-                                    <h2 className="text-2xl font-bold">{selectedOrder.client}</h2>
-                                    <p className="text-gray-500 font-bold">O.S. #{selectedOrder.osNumber}</p>
+                                <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 relative">
+                                    <div className="flex justify-between items-start mb-2">
+                                        <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter">Ficha Técnica Digital</span>
+                                        <button 
+                                            onClick={(e) => { e.stopPropagation(); deleteOrder(selectedOrder.id); }}
+                                            className="text-red-300 hover:text-red-600 transition-colors p-1"
+                                        >
+                                            <i data-lucide="trash-2" size="20"></i>
+                                        </button>
+                                    </div>
+                                    <h2 className="text-3xl font-black text-slate-800 leading-none">{selectedOrder.client}</h2>
+                                    <p className="text-blue-600 font-black mt-1">O.S. #{selectedOrder.osNumber}</p>
                                 </div>
 
-                                <div className="bg-white p-4 rounded-xl shadow space-y-2">
-                                    <label className="text-xs font-black text-gray-400 uppercase">Descrição Geral do Serviço</label>
+                                <div className="bg-white p-6 rounded-3xl shadow-sm space-y-3 border border-gray-100">
+                                    <div className="flex items-center gap-2 text-slate-400">
+                                        <i data-lucide="file-text" size="14"></i>
+                                        <label className="text-[10px] font-black uppercase tracking-widest">Relatório Técnico</label>
+                                    </div>
                                     <textarea 
-                                        className="w-full border-0 bg-gray-50 p-3 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none min-h-[100px]"
-                                        placeholder="Digite aqui o que foi feito no veículo..."
+                                        className="w-full border-0 bg-slate-50 p-4 rounded-2xl text-sm focus:ring-4 focus:ring-blue-50/50 outline-none min-h-[150px] font-medium text-slate-700 leading-relaxed"
+                                        placeholder="Descreva o defeito e as peças substituídas..."
                                         value={selectedOrder.serviceNotes || ""}
                                         onChange={(e) => updateOrderField("serviceNotes", e.target.value)}
                                     />
                                 </div>
 
-                                <div className="flex justify-between items-center">
-                                    <h3 className="font-bold flex items-center gap-2"><i data-lucide="camera"></i> Fotos do Serviço</h3>
-                                    <button disabled={isUploading} onClick={() => fileInputRef.current.click()} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow flex items-center gap-2">
-                                        {isUploading ? "..." : <i data-lucide="plus" size="16"></i>} Anexar
+                                <div className="flex justify-between items-center px-2">
+                                    <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest flex items-center gap-2"><i data-lucide="layout-grid" size="16" className="text-blue-500"></i> Registros Visuais</h3>
+                                    <button 
+                                        disabled={isUploading} 
+                                        onClick={() => fileInputRef.current.click()} 
+                                        className="bg-blue-600 text-white px-5 py-3 rounded-2xl font-black text-[10px] shadow-lg shadow-blue-100 flex items-center gap-2 active:scale-95 transition-all"
+                                    >
+                                        {isUploading ? <span className="animate-spin h-3 w-3 border-2 border-white border-t-transparent rounded-full"></span> : <i data-lucide="camera" size="14"></i>}
+                                        {isUploading ? "ENVIANDO..." : "FOTOGRAFAR"}
                                     </button>
                                     <input type="file" multiple accept="image/*" className="hidden" ref={fileInputRef} onChange={compressAndUpload} />
                                 </div>
 
                                 <div className="grid gap-6">
                                     {selectedOrder.photos?.map(p => (
-                                        <div key={p.id} className="bg-white rounded-2xl overflow-hidden shadow-md border border-gray-100">
-                                            <img src={p.url} className="w-full h-auto bg-black" />
-                                            <div className="p-3 space-y-2">
-                                                <input 
-                                                    className="w-full text-sm border-b border-gray-100 focus:border-blue-500 outline-none p-1"
-                                                    placeholder="Legenda da foto (ex: Peça trocada)"
-                                                    value={p.description || ""}
-                                                    onChange={(e) => updatePhotoDesc(p.id, e.target.value)}
-                                                />
-                                                <div className="text-right">
-                                                    <a href={p.url} download className="text-[10px] font-black text-blue-600">BAIXAR ORIGINAL</a>
+                                        <div key={p.id} className="bg-white rounded-[2rem] overflow-hidden shadow-sm border border-gray-100 transition-all">
+                                            <img src={p.url} className="w-full h-auto bg-black max-h-96 object-contain" />
+                                            <div className="p-5 space-y-4">
+                                                <div className="flex items-center gap-3 bg-gray-50 p-3 rounded-xl">
+                                                    <i data-lucide="message-square" size="14" className="text-blue-400"></i>
+                                                    <input 
+                                                        className="w-full bg-transparent text-xs outline-none font-bold text-slate-600 placeholder:text-gray-300"
+                                                        placeholder="Adicionar nota técnica a esta foto..."
+                                                        value={p.description || ""}
+                                                        onChange={(e) => updatePhotoDesc(p.id, e.target.value)}
+                                                    />
+                                                </div>
+                                                <div className="flex justify-end">
+                                                    <a href={p.url} download={`OS-${selectedOrder.osNumber}.jpg`} className="flex items-center gap-1 text-[9px] font-black text-slate-400 hover:text-blue-600 transition-colors uppercase tracking-widest bg-gray-50 px-3 py-1.5 rounded-full">
+                                                        <i data-lucide="download" size="10"></i> Salvar na Galeria
+                                                    </a>
                                                 </div>
                                             </div>
                                         </div>
                                     ))}
+                                    {(!selectedOrder.photos || selectedOrder.photos.length === 0) && (
+                                        <div className="text-center py-16 border-2 border-dashed border-gray-100 rounded-[2.5rem] text-gray-300 flex flex-col items-center gap-3">
+                                            <i data-lucide="image-off" size="32"></i>
+                                            <span className="text-[10px] font-black uppercase tracking-widest">Sem fotos anexadas</span>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         )}
