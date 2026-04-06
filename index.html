@@ -91,11 +91,13 @@
                 await updateDoc(orderRef, { photos: updatedPhotos });
             };
 
+            // FUNÇÃO DE UPLOAD CORRIGIDA PARA NÃO TRAVAR
             const compressAndUpload = async (e) => {
                 const files = Array.from(e.target.files);
                 if (files.length === 0 || !selectedOrder) return;
+                
                 setIsUploading(true);
-                const newPhotosList = [];
+                const processedPhotos = [];
 
                 try {
                     for (const file of files) {
@@ -105,9 +107,9 @@
                             reader.readAsDataURL(file);
                         });
                         
-                        const img = new Image();
-                        img.src = base64;
                         const compressed = await new Promise(r => {
+                            const img = new Image();
+                            img.src = base64;
                             img.onload = () => {
                                 const canvas = document.createElement('canvas');
                                 const ctx = canvas.getContext('2d');
@@ -117,20 +119,35 @@
                                 else { if (h > max) { w *= max / h; h = max; } }
                                 canvas.width = w; canvas.height = h;
                                 ctx.drawImage(img, 0, 0, w, h);
-                                r(canvas.toDataURL('image/jpeg', 0.6));
+                                r(canvas.toDataURL('image/jpeg', 0.5)); // Qualidade 0.5 para leveza
                             };
                         });
-                        newPhotosList.push({ id: Math.random().toString(36).substr(2, 9), url: compressed, description: "" });
+                        processedPhotos.push({ 
+                            id: Math.random().toString(36).substr(2, 9), 
+                            url: compressed, 
+                            description: "" 
+                        });
                     }
+
+                    // Gravação direta no Firebase (Sem atualizar estado local manualmente para evitar conflito)
                     const orderRef = doc(db, 'orders', selectedOrder.id);
                     const docSnap = await getDoc(orderRef);
                     const currentPhotos = docSnap.exists() ? (docSnap.data().photos || []) : [];
-                    await updateDoc(orderRef, { photos: [...currentPhotos, ...newPhotosList] });
-                } catch (err) { alert("Erro no envio."); }
-                finally { setIsUploading(false); }
+                    
+                    await updateDoc(orderRef, { 
+                        photos: [...currentPhotos, ...processedPhotos] 
+                    });
+
+                } catch (err) {
+                    console.error("Erro no upload:", err);
+                    alert("Erro ao salvar imagens.");
+                } finally {
+                    setIsUploading(false);
+                    if (fileInputRef.current) fileInputRef.current.value = ""; // Limpa o input de arquivo
+                }
             };
 
-            if (!user) return <div className="h-screen flex items-center justify-center font-bold text-blue-600 italic">Oficina Cloud v2.0...</div>;
+            if (!user) return <div className="h-screen flex items-center justify-center font-bold text-blue-600 italic tracking-tighter">OFICINA CLOUD...</div>;
 
             return (
                 <div className="min-h-screen pb-10">
@@ -189,7 +206,7 @@
                                         <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter">Ficha Técnica Digital</span>
                                         <button 
                                             onClick={(e) => { e.stopPropagation(); deleteOrder(selectedOrder.id); }}
-                                            className="text-red-300 hover:text-red-600 transition-colors p-1"
+                                            className="text-red-200 hover:text-red-600 transition-colors p-1"
                                         >
                                             <i data-lucide="trash-2" size="20"></i>
                                         </button>
@@ -216,10 +233,10 @@
                                     <button 
                                         disabled={isUploading} 
                                         onClick={() => fileInputRef.current.click()} 
-                                        className="bg-blue-600 text-white px-5 py-3 rounded-2xl font-black text-[10px] shadow-lg shadow-blue-100 flex items-center gap-2 active:scale-95 transition-all"
+                                        className={`px-5 py-3 rounded-2xl font-black text-[10px] shadow-lg flex items-center gap-2 active:scale-95 transition-all ${isUploading ? 'bg-gray-400 text-white' : 'bg-blue-600 text-white shadow-blue-100'}`}
                                     >
                                         {isUploading ? <span className="animate-spin h-3 w-3 border-2 border-white border-t-transparent rounded-full"></span> : <i data-lucide="camera" size="14"></i>}
-                                        {isUploading ? "ENVIANDO..." : "FOTOGRAFAR"}
+                                        {isUploading ? "PROCESSANDO..." : "FOTOGRAFAR"}
                                     </button>
                                     <input type="file" multiple accept="image/*" className="hidden" ref={fileInputRef} onChange={compressAndUpload} />
                                 </div>
@@ -227,7 +244,7 @@
                                 <div className="grid gap-6">
                                     {selectedOrder.photos?.map(p => (
                                         <div key={p.id} className="bg-white rounded-[2rem] overflow-hidden shadow-sm border border-gray-100 transition-all">
-                                            <img src={p.url} className="w-full h-auto bg-black max-h-96 object-contain" />
+                                            <img src={p.url} className="w-full h-auto bg-black max-h-96 object-contain" loading="lazy" />
                                             <div className="p-5 space-y-4">
                                                 <div className="flex items-center gap-3 bg-gray-50 p-3 rounded-xl">
                                                     <i data-lucide="message-square" size="14" className="text-blue-400"></i>
@@ -246,12 +263,6 @@
                                             </div>
                                         </div>
                                     ))}
-                                    {(!selectedOrder.photos || selectedOrder.photos.length === 0) && (
-                                        <div className="text-center py-16 border-2 border-dashed border-gray-100 rounded-[2.5rem] text-gray-300 flex flex-col items-center gap-3">
-                                            <i data-lucide="image-off" size="32"></i>
-                                            <span className="text-[10px] font-black uppercase tracking-widest">Sem fotos anexadas</span>
-                                        </div>
-                                    )}
                                 </div>
                             </div>
                         )}
