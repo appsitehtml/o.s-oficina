@@ -31,10 +31,11 @@
         const auth = getAuth(app);
         const db = getFirestore(app);
 
-        // Ícones simples em SVG para evitar o erro do Lucide
+        // Ícones SVG
         const IconWrench = () => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>;
         const IconPlus = () => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>;
-        const IconTrash = () => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>;
+        const IconTrash = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>;
+        const IconDownload = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>;
         const IconBack = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>;
 
         function App() {
@@ -66,6 +67,32 @@
                 });
             }, [user, selectedOrder?.id]);
 
+            const deleteOrder = async (id) => {
+                if (window.confirm("Deseja apagar esta O.S. completa e todas as fotos?")) {
+                    await deleteDoc(doc(db, 'orders', id));
+                    setView('list');
+                }
+            };
+
+            const deletePhoto = async (photoId) => {
+                if (window.confirm("Apagar esta foto?")) {
+                    const updatedPhotos = selectedOrder.photos.filter(p => p.id !== photoId);
+                    await updateDoc(doc(db, 'orders', selectedOrder.id), { photos: updatedPhotos });
+                }
+            };
+
+            const downloadAllPhotos = () => {
+                if (!selectedOrder.photos || selectedOrder.photos.length === 0) return;
+                selectedOrder.photos.forEach((p, index) => {
+                    const link = document.createElement('a');
+                    link.href = p.url;
+                    link.download = `OS-${selectedOrder.osNumber}-foto-${index + 1}.jpg`;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                });
+            };
+
             const updateOrderField = async (field, value) => {
                 try {
                     await updateDoc(doc(db, 'orders', selectedOrder.id), { [field]: value });
@@ -94,7 +121,7 @@
                                     else { if (h > MAX) { w *= MAX / h; h = MAX; } }
                                     canvas.width = w; canvas.height = h;
                                     canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-                                    resolve(canvas.toDataURL('image/jpeg', 0.5));
+                                    resolve(canvas.toDataURL('image/jpeg', 0.6));
                                 };
                             };
                         });
@@ -130,7 +157,7 @@
                                         <div>
                                             <div className="text-blue-600 font-bold text-[10px]">OS #{o.osNumber}</div>
                                             <div className="font-bold text-slate-800 uppercase text-sm">{o.client}</div>
-                                            <div className="text-[10px] text-slate-400 mt-1 uppercase font-semibold">{o.photos?.length || 0} fotos salvas</div>
+                                            <div className="text-[10px] text-slate-400 mt-1 uppercase font-semibold">{o.photos?.length || 0} fotos</div>
                                         </div>
                                         <div className="text-slate-300"><IconBack /></div>
                                     </div>
@@ -158,11 +185,11 @@
                                         <h2 className="text-xl font-bold text-slate-800 uppercase">{selectedOrder.client}</h2>
                                         <p className="text-blue-600 font-bold text-xs mt-1">Nº {selectedOrder.osNumber}</p>
                                     </div>
-                                    <button onClick={() => { if(confirm("Apagar O.S.?")) deleteDoc(doc(db, 'orders', selectedOrder.id)); }} className="text-slate-300 p-1"><IconTrash /></button>
+                                    <button onClick={() => deleteOrder(selectedOrder.id)} className="text-slate-300 p-2 hover:text-red-500"><IconTrash /></button>
                                 </div>
 
                                 <div className="bg-white p-4 rounded-xl shadow-sm space-y-2 border border-slate-100">
-                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Descrição</label>
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Descrição do Serviço</label>
                                     <textarea 
                                         className="w-full border-0 bg-slate-50 p-3 rounded-lg text-sm outline-none min-h-[100px] font-medium"
                                         placeholder="O que foi feito no carro?"
@@ -171,23 +198,33 @@
                                     />
                                 </div>
 
-                                <div className="flex justify-between items-center bg-slate-100 p-2 rounded-xl">
-                                    <h3 className="font-bold text-slate-600 text-[10px] uppercase px-2 tracking-widest">Galeria</h3>
-                                    <button 
-                                        disabled={isUploading} 
-                                        onClick={() => fileInputRef.current.click()} 
-                                        className={`px-4 py-2 rounded-lg font-bold text-[10px] flex items-center gap-2 ${isUploading ? 'bg-slate-400 text-white' : 'bg-blue-600 text-white'}`}
-                                    >
-                                        {isUploading ? "PROCESSANDO..." : "ADICIONAR FOTO"}
-                                    </button>
+                                <div className="flex justify-between items-center bg-slate-200 p-2 rounded-xl sticky top-16 z-40">
+                                    <div className="flex gap-1">
+                                        <button 
+                                            disabled={isUploading} 
+                                            onClick={() => fileInputRef.current.click()} 
+                                            className="bg-blue-600 text-white px-3 py-2 rounded-lg font-bold text-[9px] flex items-center gap-1 uppercase tracking-tighter"
+                                        >
+                                            <IconPlus /> {isUploading ? "ENVIANDO" : "FOTO"}
+                                        </button>
+                                        {selectedOrder.photos?.length > 0 && (
+                                            <button 
+                                                onClick={downloadAllPhotos}
+                                                className="bg-slate-700 text-white px-3 py-2 rounded-lg font-bold text-[9px] flex items-center gap-1 uppercase tracking-tighter"
+                                            >
+                                                <IconDownload /> BAIXAR TUDO
+                                            </button>
+                                        )}
+                                    </div>
                                     <input type="file" multiple accept="image/*" className="hidden" ref={fileInputRef} onChange={handleUpload} />
                                 </div>
 
                                 <div className="grid gap-4">
                                     {selectedOrder.photos?.map(p => (
-                                        <div key={p.id} className="bg-white rounded-xl overflow-hidden shadow-sm border border-slate-100">
-                                            <img src={p.url} className="w-full h-auto bg-slate-200" />
-                                            <div className="p-3">
+                                        <div key={p.id} className="bg-white rounded-xl overflow-hidden shadow-sm border border-slate-100 relative group">
+                                            <img src={p.url} className="w-full h-auto bg-slate-200" loading="lazy" />
+                                            
+                                            <div className="p-3 flex items-center gap-2">
                                                 <input 
                                                     className="w-full text-xs font-bold text-slate-600 outline-none"
                                                     placeholder="Legenda da foto..."
@@ -197,6 +234,10 @@
                                                         updateDoc(doc(db, 'orders', selectedOrder.id), { photos: up });
                                                     }}
                                                 />
+                                                <div className="flex gap-2">
+                                                    <a href={p.url} download={`OS-${selectedOrder.osNumber}.jpg`} className="text-blue-500 p-1"><IconDownload /></a>
+                                                    <button onClick={() => deletePhoto(p.id)} className="text-red-400 p-1"><IconTrash /></button>
+                                                </div>
                                             </div>
                                         </div>
                                     ))}
