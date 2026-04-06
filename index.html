@@ -2,15 +2,19 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Sistema O.S. Oficina</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        /* Evita que o navegador tente renderizar tudo de uma vez e trave */
+        img { content-visibility: auto; }
+    </style>
 </head>
-<body class="bg-gray-50">
+<body class="bg-gray-50 text-slate-900">
     <div id="root"></div>
 
     <script type="text/babel" data-type="module">
@@ -52,134 +56,118 @@
 
             useEffect(() => {
                 if (!user) return;
-                const q = collection(db, 'orders');
-                return onSnapshot(q, (snapshot) => {
+                return onSnapshot(collection(db, 'orders'), (snapshot) => {
                     const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-                    const sortedData = data.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-                    setOrders(sortedData);
-                    
+                    const sorted = data.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+                    setOrders(sorted);
                     if (selectedOrder) {
-                        const updated = sortedData.find(o => o.id === selectedOrder.id);
-                        if (updated) setSelectedOrder(updated);
-                        else { setView('list'); setSelectedOrder(null); }
+                        const up = sorted.find(o => o.id === selectedOrder.id);
+                        if (up) setSelectedOrder(up);
                     }
                 });
             }, [user, selectedOrder?.id]);
 
-            const deleteOrder = async (id) => {
-                if (window.confirm("ATENÇÃO: Isso apagará todas as fotos e informações desta O.S. permanentemente. Deseja continuar?")) {
-                    try {
-                        await deleteDoc(doc(db, 'orders', id));
-                        setView('list');
-                        setSelectedOrder(null);
-                    } catch (e) { alert("Erro ao excluir serviço."); }
-                }
-            };
-
             const updateOrderField = async (field, value) => {
                 try {
-                    const orderRef = doc(db, 'orders', selectedOrder.id);
-                    await updateDoc(orderRef, { [field]: value });
+                    await updateDoc(doc(db, 'orders', selectedOrder.id), { [field]: value });
                 } catch (e) { console.error(e); }
             };
 
-            const updatePhotoDesc = async (photoId, text) => {
-                const updatedPhotos = selectedOrder.photos.map(p => 
-                    p.id === photoId ? { ...p, description: text } : p
-                );
-                const orderRef = doc(db, 'orders', selectedOrder.id);
-                await updateDoc(orderRef, { photos: updatedPhotos });
+            const compressImage = (file) => {
+                return new Promise((resolve) => {
+                    const reader = new FileReader();
+                    reader.readAsDataURL(file);
+                    reader.onload = (event) => {
+                        const img = new Image();
+                        img.src = event.target.result;
+                        img.onload = () => {
+                            const canvas = document.createElement('canvas');
+                            const MAX_WIDTH = 600; // Reduzido para evitar tela branca
+                            let width = img.width;
+                            let height = img.height;
+
+                            if (width > height) {
+                                if (width > MAX_WIDTH) {
+                                    height *= MAX_WIDTH / width;
+                                    width = MAX_WIDTH;
+                                }
+                            } else {
+                                if (height > MAX_WIDTH) {
+                                    width *= MAX_WIDTH / height;
+                                    height = MAX_WIDTH;
+                                }
+                            }
+                            canvas.width = width;
+                            canvas.height = height;
+                            const ctx = canvas.getContext('2d');
+                            ctx.drawImage(img, 0, 0, width, height);
+                            resolve(canvas.toDataURL('image/jpeg', 0.5));
+                        };
+                    };
+                });
             };
 
-            // FUNÇÃO DE UPLOAD CORRIGIDA PARA NÃO TRAVAR
-            const compressAndUpload = async (e) => {
+            const handleUpload = async (e) => {
                 const files = Array.from(e.target.files);
-                if (files.length === 0 || !selectedOrder) return;
+                if (!files.length) return;
                 
                 setIsUploading(true);
-                const processedPhotos = [];
-
                 try {
+                    const orderRef = doc(db, 'orders', selectedOrder.id);
+                    const newPhotos = [];
+
                     for (const file of files) {
-                        const base64 = await new Promise(r => {
-                            const reader = new FileReader();
-                            reader.onload = () => r(reader.result);
-                            reader.readAsDataURL(file);
-                        });
-                        
-                        const compressed = await new Promise(r => {
-                            const img = new Image();
-                            img.src = base64;
-                            img.onload = () => {
-                                const canvas = document.createElement('canvas');
-                                const ctx = canvas.getContext('2d');
-                                const max = 800;
-                                let w = img.width, h = img.height;
-                                if (w > h) { if (w > max) { h *= max / w; w = max; } }
-                                else { if (h > max) { w *= max / h; h = max; } }
-                                canvas.width = w; canvas.height = h;
-                                ctx.drawImage(img, 0, 0, w, h);
-                                r(canvas.toDataURL('image/jpeg', 0.5)); // Qualidade 0.5 para leveza
-                            };
-                        });
-                        processedPhotos.push({ 
-                            id: Math.random().toString(36).substr(2, 9), 
-                            url: compressed, 
-                            description: "" 
+                        const compressed = await compressImage(file);
+                        newPhotos.push({
+                            id: Math.random().toString(36).substr(2, 9),
+                            url: compressed,
+                            description: ""
                         });
                     }
 
-                    // Gravação direta no Firebase (Sem atualizar estado local manualmente para evitar conflito)
-                    const orderRef = doc(db, 'orders', selectedOrder.id);
                     const docSnap = await getDoc(orderRef);
                     const currentPhotos = docSnap.exists() ? (docSnap.data().photos || []) : [];
-                    
-                    await updateDoc(orderRef, { 
-                        photos: [...currentPhotos, ...processedPhotos] 
-                    });
-
+                    await updateDoc(orderRef, { photos: [...currentPhotos, ...newPhotos] });
                 } catch (err) {
-                    console.error("Erro no upload:", err);
-                    alert("Erro ao salvar imagens.");
+                    alert("Erro ao salvar. Tente uma foto por vez.");
                 } finally {
                     setIsUploading(false);
-                    if (fileInputRef.current) fileInputRef.current.value = ""; // Limpa o input de arquivo
+                    if (fileInputRef.current) fileInputRef.current.value = "";
                 }
             };
 
-            if (!user) return <div className="h-screen flex items-center justify-center font-bold text-blue-600 italic tracking-tighter">OFICINA CLOUD...</div>;
+            if (!user) return <div className="h-screen flex items-center justify-center font-bold text-blue-600 uppercase tracking-widest text-xs animate-pulse">Carregando Oficina...</div>;
 
             return (
                 <div className="min-h-screen pb-10">
-                    <header className="bg-slate-900 text-white p-4 shadow-xl flex justify-between items-center sticky top-0 z-50 border-b border-slate-700">
-                        <h1 className="font-bold flex items-center gap-2 tracking-tighter"><i data-lucide="wrench" className="text-blue-400"></i> OS OFICINA</h1>
+                    <header className="bg-slate-900 text-white p-4 shadow-lg flex justify-between items-center sticky top-0 z-50">
+                        <h1 className="font-bold flex items-center gap-2 text-sm tracking-tight"><i data-lucide="wrench" className="text-blue-400"></i> OFICINA DIGITAL</h1>
                         {view !== 'list' && (
-                            <button onClick={() => setView('list')} className="p-2 bg-slate-800 rounded-lg"><i data-lucide="arrow-left" size="20"></i></button>
+                            <button onClick={() => setView('list')} className="p-2 bg-slate-800 rounded-lg active:scale-90 transition-transform">
+                                <i data-lucide="chevron-left" size="20"></i>
+                            </button>
                         )}
                     </header>
 
                     <main className="p-4 max-w-xl mx-auto">
                         {view === 'list' ? (
-                            <div className="space-y-4">
-                                <button onClick={() => setView('create')} className="w-full bg-blue-600 text-white p-4 rounded-2xl font-black shadow-lg shadow-blue-200 active:scale-95 transition-all flex items-center justify-center gap-2 uppercase text-sm tracking-widest">
-                                    <i data-lucide="plus-circle" size="18"></i> Abrir Nova O.S.
+                            <div className="space-y-3">
+                                <button onClick={() => setView('create')} className="w-full bg-blue-600 text-white p-4 rounded-xl font-bold shadow-md active:bg-blue-700 transition-colors uppercase text-xs tracking-widest">
+                                    + Nova Ordem de Serviço
                                 </button>
                                 {orders.map(o => (
-                                    <div key={o.id} onClick={() => { setSelectedOrder(o); setView('detail'); }} className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 active:bg-gray-50 flex justify-between items-center group">
-                                        <div className="flex-1">
-                                            <div className="text-blue-500 font-black text-[10px] uppercase tracking-widest mb-1">OS #{o.osNumber}</div>
-                                            <div className="text-lg font-bold text-slate-800 leading-tight">{o.client}</div>
-                                            <div className="text-[10px] text-gray-400 mt-2 font-semibold flex items-center gap-2">
-                                                <span className="bg-gray-100 px-2 py-0.5 rounded text-gray-500 underline decoration-blue-300">{new Date(o.createdAt).toLocaleDateString()}</span>
-                                                <span className="flex items-center gap-1"><i data-lucide="image" size="10"></i> {o.photos?.length || 0} fotos</span>
-                                            </div>
+                                    <div key={o.id} onClick={() => { setSelectedOrder(o); setView('detail'); }} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm active:bg-slate-50 flex justify-between items-center">
+                                        <div>
+                                            <div className="text-blue-600 font-bold text-[10px]">OS #{o.osNumber}</div>
+                                            <div className="font-bold text-slate-800 uppercase text-sm">{o.client}</div>
+                                            <div className="text-[10px] text-slate-400 mt-1 uppercase font-semibold">{o.photos?.length || 0} fotos salvas</div>
                                         </div>
-                                        <i data-lucide="chevron-right" className="text-gray-300 group-active:text-blue-500"></i>
+                                        <i data-lucide="chevron-right" className="text-slate-300" size="18"></i>
                                     </div>
                                 ))}
                             </div>
                         ) : view === 'create' ? (
-                            <form className="bg-white p-8 rounded-3xl shadow-xl space-y-5 border border-gray-50" onSubmit={async (e) => {
+                            <form className="bg-white p-6 rounded-xl shadow-md space-y-4" onSubmit={async (e) => {
                                 e.preventDefault();
                                 const fd = new FormData(e.target);
                                 await addDoc(collection(db, 'orders'), {
@@ -188,78 +176,58 @@
                                 });
                                 setView('list');
                             }}>
-                                <h2 className="text-2xl font-black text-slate-800 text-center mb-2">Dados do Serviço</h2>
-                                <div>
-                                    <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Número da Ordem</label>
-                                    <input name="os" placeholder="Ex: 2024-001" className="w-full border-2 border-gray-100 p-4 rounded-xl outline-none focus:border-blue-500 transition-colors font-bold" required />
-                                </div>
-                                <div>
-                                    <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Cliente / Veículo</label>
-                                    <input name="client" placeholder="Ex: João - Celta Prata" className="w-full border-2 border-gray-100 p-4 rounded-xl outline-none focus:border-blue-500 transition-colors font-bold" required />
-                                </div>
-                                <button className="w-full bg-slate-900 text-white p-5 rounded-2xl font-black shadow-lg active:scale-95 transition-all uppercase tracking-widest">Registrar no Sistema</button>
+                                <h2 className="text-lg font-bold text-slate-800">Nova O.S.</h2>
+                                <input name="os" placeholder="Número da O.S." className="w-full border p-3 rounded-lg bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500 font-bold" required />
+                                <input name="client" placeholder="Nome do Cliente / Veículo" className="w-full border p-3 rounded-lg bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500 font-bold" required />
+                                <button className="w-full bg-slate-900 text-white p-4 rounded-xl font-bold uppercase text-xs tracking-widest">Salvar no Banco de Dados</button>
                             </form>
                         ) : (
-                            <div className="space-y-6">
-                                <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 relative">
-                                    <div className="flex justify-between items-start mb-2">
-                                        <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter">Ficha Técnica Digital</span>
-                                        <button 
-                                            onClick={(e) => { e.stopPropagation(); deleteOrder(selectedOrder.id); }}
-                                            className="text-red-200 hover:text-red-600 transition-colors p-1"
-                                        >
-                                            <i data-lucide="trash-2" size="20"></i>
-                                        </button>
+                            <div className="space-y-4">
+                                <div className="bg-white p-4 rounded-xl shadow-sm border-l-4 border-blue-600 flex justify-between items-start">
+                                    <div>
+                                        <h2 className="text-xl font-bold text-slate-800 uppercase leading-none">{selectedOrder.client}</h2>
+                                        <p className="text-blue-600 font-bold text-xs mt-1">Nº {selectedOrder.osNumber}</p>
                                     </div>
-                                    <h2 className="text-3xl font-black text-slate-800 leading-none">{selectedOrder.client}</h2>
-                                    <p className="text-blue-600 font-black mt-1">O.S. #{selectedOrder.osNumber}</p>
+                                    <button onClick={() => { if(confirm("Apagar O.S.?")) deleteDoc(doc(db, 'orders', selectedOrder.id)); }} className="text-slate-300 active:text-red-600 p-1"><i data-lucide="trash-2" size="18"></i></button>
                                 </div>
 
-                                <div className="bg-white p-6 rounded-3xl shadow-sm space-y-3 border border-gray-100">
-                                    <div className="flex items-center gap-2 text-slate-400">
-                                        <i data-lucide="file-text" size="14"></i>
-                                        <label className="text-[10px] font-black uppercase tracking-widest">Relatório Técnico</label>
-                                    </div>
+                                <div className="bg-white p-4 rounded-xl shadow-sm space-y-2 border border-slate-100">
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Descrição do Serviço</label>
                                     <textarea 
-                                        className="w-full border-0 bg-slate-50 p-4 rounded-2xl text-sm focus:ring-4 focus:ring-blue-50/50 outline-none min-h-[150px] font-medium text-slate-700 leading-relaxed"
-                                        placeholder="Descreva o defeito e as peças substituídas..."
+                                        className="w-full border-0 bg-slate-50 p-3 rounded-lg text-sm focus:ring-2 focus:ring-blue-100 outline-none min-h-[100px] font-medium"
+                                        placeholder="O que foi feito no carro?"
                                         value={selectedOrder.serviceNotes || ""}
                                         onChange={(e) => updateOrderField("serviceNotes", e.target.value)}
                                     />
                                 </div>
 
-                                <div className="flex justify-between items-center px-2">
-                                    <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest flex items-center gap-2"><i data-lucide="layout-grid" size="16" className="text-blue-500"></i> Registros Visuais</h3>
+                                <div className="flex justify-between items-center bg-slate-100 p-2 rounded-xl">
+                                    <h3 className="font-bold text-slate-600 text-xs uppercase px-2">Galeria de Fotos</h3>
                                     <button 
                                         disabled={isUploading} 
                                         onClick={() => fileInputRef.current.click()} 
-                                        className={`px-5 py-3 rounded-2xl font-black text-[10px] shadow-lg flex items-center gap-2 active:scale-95 transition-all ${isUploading ? 'bg-gray-400 text-white' : 'bg-blue-600 text-white shadow-blue-100'}`}
+                                        className={`px-4 py-2 rounded-lg font-bold text-[10px] shadow-sm flex items-center gap-2 ${isUploading ? 'bg-slate-400 text-white' : 'bg-blue-600 text-white active:scale-95'}`}
                                     >
-                                        {isUploading ? <span className="animate-spin h-3 w-3 border-2 border-white border-t-transparent rounded-full"></span> : <i data-lucide="camera" size="14"></i>}
-                                        {isUploading ? "PROCESSANDO..." : "FOTOGRAFAR"}
+                                        {isUploading ? "..." : <i data-lucide="camera" size="14"></i>}
+                                        {isUploading ? "PROCESSANDO" : "FOTO"}
                                     </button>
-                                    <input type="file" multiple accept="image/*" className="hidden" ref={fileInputRef} onChange={compressAndUpload} />
+                                    <input type="file" multiple accept="image/*" className="hidden" ref={fileInputRef} onChange={handleUpload} />
                                 </div>
 
-                                <div className="grid gap-6">
+                                <div className="grid gap-4">
                                     {selectedOrder.photos?.map(p => (
-                                        <div key={p.id} className="bg-white rounded-[2rem] overflow-hidden shadow-sm border border-gray-100 transition-all">
-                                            <img src={p.url} className="w-full h-auto bg-black max-h-96 object-contain" loading="lazy" />
-                                            <div className="p-5 space-y-4">
-                                                <div className="flex items-center gap-3 bg-gray-50 p-3 rounded-xl">
-                                                    <i data-lucide="message-square" size="14" className="text-blue-400"></i>
-                                                    <input 
-                                                        className="w-full bg-transparent text-xs outline-none font-bold text-slate-600 placeholder:text-gray-300"
-                                                        placeholder="Adicionar nota técnica a esta foto..."
-                                                        value={p.description || ""}
-                                                        onChange={(e) => updatePhotoDesc(p.id, e.target.value)}
-                                                    />
-                                                </div>
-                                                <div className="flex justify-end">
-                                                    <a href={p.url} download={`OS-${selectedOrder.osNumber}.jpg`} className="flex items-center gap-1 text-[9px] font-black text-slate-400 hover:text-blue-600 transition-colors uppercase tracking-widest bg-gray-50 px-3 py-1.5 rounded-full">
-                                                        <i data-lucide="download" size="10"></i> Salvar na Galeria
-                                                    </a>
-                                                </div>
+                                        <div key={p.id} className="bg-white rounded-xl overflow-hidden shadow-sm border border-slate-100">
+                                            <img src={p.url} className="w-full h-auto bg-slate-200" loading="lazy" />
+                                            <div className="p-3">
+                                                <input 
+                                                    className="w-full text-xs font-bold text-slate-600 outline-none border-b border-transparent focus:border-blue-200 py-1"
+                                                    placeholder="Legenda da foto..."
+                                                    value={p.description || ""}
+                                                    onChange={(e) => {
+                                                        const up = selectedOrder.photos.map(ph => ph.id === p.id ? {...ph, description: e.target.value} : ph);
+                                                        updateDoc(doc(db, 'orders', selectedOrder.id), { photos: up });
+                                                    }}
+                                                />
                                             </div>
                                         </div>
                                     ))}
