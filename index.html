@@ -2,28 +2,67 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <title>Teste de Diagnóstico Total</title>
+    <title>Sistema Oficina</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
 </head>
-<body>
-    <h1 class="p-10 text-3xl">Verifique o Console agora!</h1>
+<body class="bg-gray-50">
+    <div id="root"></div>
 
     <script type="text/babel">
-        // ESTE É O TESTE DE GRITO
-        console.log("-----------------------------------------");
-        console.log("O SCRIPT COMEÇOU A EXECUTAR!");
-        console.log("Se você ver isso, o Babel está funcionando.");
-        console.log("-----------------------------------------");
+        // 1. Configuração do Firebase
+        const firebaseConfig = {
+            apiKey: "AIzaSyAqGohWqv5OIWVzSlwtBtoRSOpVzut5Cuc",
+            authDomain: "os-oficina-c3518.firebaseapp.com",
+            projectId: "os-oficina-c3518",
+            storageBucket: "os-oficina-c3518.firebasestorage.app",
+            messagingSenderId: "294943712762",
+            appId: "1:294943712762:web:c8cd4f38ef363020eab043"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
 
-        try {
-            console.log("Tentando renderizar algo...");
-            document.body.innerHTML += "<p>Script executado com sucesso.</p>";
-        } catch (e) {
-            console.error("Erro no script:", e);
+        // 2. Componente do Sistema
+        function App() {
+            const [osList, setOsList] = React.useState([]);
+
+            // Carregar dados ao iniciar
+            React.useEffect(() => {
+                db.collection("os").onSnapshot((snapshot) => {
+                    const dados = snapshot.docs.map(doc => ({id: doc.id, ...doc.data()}));
+                    setOsList(dados);
+                });
+            }, []);
+
+            return (
+                <div className="p-6 max-w-4xl mx-auto">
+                    <h1 className="text-3xl font-bold text-gray-800 mb-6">Ordem de Serviço - Oficina</h1>
+                    
+                    <div className="bg-white p-6 rounded-lg shadow-md mb-6">
+                        <h2 className="text-xl font-semibold mb-4">Listagem de O.S.</h2>
+                        {osList.length === 0 ? (
+                            <p className="text-gray-500">Nenhuma O.S. cadastrada ainda.</p>
+                        ) : (
+                            <ul className="divide-y divide-gray-200">
+                                {osList.map(os => (
+                                    <li key={os.id} className="py-4">
+                                        <span className="font-medium">{os.cliente || "Sem nome"}</span> - 
+                                        <span className="text-gray-600"> {os.servico || "Sem serviço"}</span>
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                    </div>
+                </div>
+            );
         }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
     </script>
 </body>
 </html>
