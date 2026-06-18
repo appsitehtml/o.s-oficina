@@ -8,17 +8,15 @@
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
 </head>
-<body class="bg-gray-50 text-slate-900 font-sans">
+<body class="bg-gray-100">
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect, useRef, useMemo } = React;
-
+        // Configuração sem "import"
         const firebaseConfig = {
             apiKey: "AIzaSyAqGohWqv5OIWVzSlwtBtoRSOpVzut5Cuc",
             authDomain: "os-oficina-c3518.firebaseapp.com",
@@ -28,37 +26,27 @@
             appId: "1:294943712762:web:c8cd4f38ef363020eab043"
         };
 
-        const app = firebase.initializeApp(firebaseConfig);
+        // Inicialização global
+        firebase.initializeApp(firebaseConfig);
         const auth = firebase.auth();
         const db = firebase.firestore();
 
-        // Componente simples de App
+        const { useState, useEffect } = React;
+
         function App() {
-            const [user, setUser] = useState(null);
-            const [status, setStatus] = useState("Carregando...");
+            const [status, setStatus] = useState("Conectando...");
 
             useEffect(() => {
-                const unsubscribe = auth.onAuthStateChanged((u) => {
-                    if (!u) {
-                        auth.signInAnonymously().catch((e) => {
-                            console.error(e);
-                            setStatus("Erro ao conectar.");
-                        });
-                    } else {
-                        setUser(u);
-                    }
-                });
-                return () => unsubscribe();
+                auth.signInAnonymously()
+                    .then(() => setStatus("Sistema Online!"))
+                    .catch(() => setStatus("Erro de conexão"));
             }, []);
 
-            if (!user) {
-                return <div className="p-10 text-center">{status}</div>;
-            }
-
             return (
-                <div className="p-10 text-center">
-                    <h1 className="text-2xl font-bold">Sistema Conectado!</h1>
-                    <p>Usuário autenticado: {user.uid}</p>
+                <div className="flex justify-center items-center h-screen">
+                    <div className="bg-white p-8 rounded-xl shadow-lg text-center">
+                        <h1 className="text-2xl font-bold text-blue-600">{status}</h1>
+                    </div>
                 </div>
             );
         }
