@@ -2,51 +2,30 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <title>Debug de O.S.</title>
+    <title>Teste de Isolamento</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
 </head>
 <body class="bg-gray-100">
     <div id="root"></div>
 
     <script type="text/babel">
-        console.log("1. Script Babel iniciado...");
-        
-        const { useState, useEffect } = React;
-        const firebaseConfig = {
-            apiKey: "AIzaSyAqGohWqv5OIWVzSlwtBtoRSOpVzut5Cuc",
-            authDomain: "os-oficina-c3518.firebaseapp.com",
-            projectId: "os-oficina-c3518",
-            storageBucket: "os-oficina-c3518.firebasestorage.app",
-            messagingSenderId: "294943712762",
-            appId: "1:294943712762:web:c8cd4f38ef363020eab043"
-        };
+        console.log("Teste: O script começou a rodar.");
 
-        try {
-            console.log("2. Inicializando Firebase...");
-            if (!firebase.apps.length) {
-                firebase.initializeApp(firebaseConfig);
-            }
-            const auth = firebase.auth();
-            console.log("3. Firebase OK. Renderizando React...");
-
-            function App() {
-                return <h1 className="p-10 text-xl font-bold">App Carregado com Sucesso!</h1>;
-            }
-
-            const container = document.getElementById('root');
-            const root = ReactDOM.createRoot(container);
-            root.render(<App />);
-            console.log("4. Renderização concluída!");
-        } catch (e) {
-            console.error("ERRO CRÍTICO ENCONTRADO:", e);
-            document.body.innerHTML = `<div style="color:red; padding:20px;">ERRO: ${e.message}</div>`;
+        function App() {
+            return (
+                <div className="flex h-screen items-center justify-center">
+                    <h1 className="text-3xl font-bold text-green-600">O React está funcionando!</h1>
+                </div>
+            );
         }
+
+        const container = document.getElementById('root');
+        const root = ReactDOM.createRoot(container);
+        root.render(<App />);
+        console.log("Teste: O React terminou de renderizar.");
     </script>
 </body>
 </html>
