@@ -1,20 +1,29 @@
-<!DOCTYPE html>
-<html lang="pt-br">
-<head>
-    <meta charset="UTF-8">
-    <title>Teste Final de Conectividade</title>
-</head>
-<body style="background-color: #f3f4f6; font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh;">
-    
-    <div style="background: white; padding: 2rem; border-radius: 1rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-        <h1 id="titulo" style="color: blue;">Carregando...</h1>
-    </div>
+// TESTE DE DIAGNÓSTICO DO FIREBASE
+console.log("Iniciando teste do Firebase...");
 
-    <script>
-        // JS Puro, sem dependências, sem React, sem Babel
-        console.log("Script rodando!");
-        document.getElementById('titulo').innerText = "O SISTEMA ESTÁ RODANDO!";
-        document.body.style.backgroundColor = "#dcfce7"; // Fundo verde se rodar
-    </script>
-</body>
-</html>
+const testarFirebase = async () => {
+    try {
+        // 1. Tenta escrever um dado
+        await db.collection("teste_conexao").add({
+            mensagem: "Conexão OK",
+            timestamp: new Date()
+        });
+        console.log("✅ SUCCESSO: Firestore gravou dados com sucesso!");
+
+        // 2. Tenta ler esse dado
+        const snapshot = await db.collection("teste_conexao").get();
+        console.log(`✅ SUCCESSO: Firestore leu ${snapshot.size} documentos.`);
+
+    } catch (error) {
+        console.error("❌ ERRO NO FIREBASE:");
+        console.error("Código do erro:", error.code);
+        console.error("Mensagem:", error.message);
+        
+        // Dica visual na tela para você saber na hora
+        document.body.innerHTML += `<div style="background:red; color:white; padding:20px; position:fixed; bottom:0; width:100%;">
+            ERRO NO FIREBASE: ${error.message}
+        </div>`;
+    }
+};
+
+testarFirebase();
