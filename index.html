@@ -1,29 +1,29 @@
-// TESTE DE DIAGNÓSTICO DO FIREBASE
-console.log("Iniciando teste do Firebase...");
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Teste de Diagnóstico Total</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body>
+    <h1 class="p-10 text-3xl">Verifique o Console agora!</h1>
 
-const testarFirebase = async () => {
-    try {
-        // 1. Tenta escrever um dado
-        await db.collection("teste_conexao").add({
-            mensagem: "Conexão OK",
-            timestamp: new Date()
-        });
-        console.log("✅ SUCCESSO: Firestore gravou dados com sucesso!");
+    <script type="text/babel">
+        // ESTE É O TESTE DE GRITO
+        console.log("-----------------------------------------");
+        console.log("O SCRIPT COMEÇOU A EXECUTAR!");
+        console.log("Se você ver isso, o Babel está funcionando.");
+        console.log("-----------------------------------------");
 
-        // 2. Tenta ler esse dado
-        const snapshot = await db.collection("teste_conexao").get();
-        console.log(`✅ SUCCESSO: Firestore leu ${snapshot.size} documentos.`);
-
-    } catch (error) {
-        console.error("❌ ERRO NO FIREBASE:");
-        console.error("Código do erro:", error.code);
-        console.error("Mensagem:", error.message);
-        
-        // Dica visual na tela para você saber na hora
-        document.body.innerHTML += `<div style="background:red; color:white; padding:20px; position:fixed; bottom:0; width:100%;">
-            ERRO NO FIREBASE: ${error.message}
-        </div>`;
-    }
-};
-
-testarFirebase();
+        try {
+            console.log("Tentando renderizar algo...");
+            document.body.innerHTML += "<p>Script executado com sucesso.</p>";
+        } catch (e) {
+            console.error("Erro no script:", e);
+        }
+    </script>
+</body>
+</html>
