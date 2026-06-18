@@ -6,14 +6,13 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
 </head>
-<body class="bg-gray-50">
+<body class="bg-gray-100">
     <div id="root"></div>
 
-    <script type="text/babel">
+    <script>
         // 1. Configuração do Firebase
         const firebaseConfig = {
             apiKey: "AIzaSyAqGohWqv5OIWVzSlwtBtoRSOpVzut5Cuc",
@@ -26,11 +25,10 @@
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
 
-        // 2. Componente do Sistema
+        // 2. Componente React (Sem JSX / Sem Babel)
         function App() {
             const [osList, setOsList] = React.useState([]);
 
-            // Carregar dados ao iniciar
             React.useEffect(() => {
                 db.collection("os").onSnapshot((snapshot) => {
                     const dados = snapshot.docs.map(doc => ({id: doc.id, ...doc.data()}));
@@ -38,31 +36,27 @@
                 });
             }, []);
 
-            return (
-                <div className="p-6 max-w-4xl mx-auto">
-                    <h1 className="text-3xl font-bold text-gray-800 mb-6">Ordem de Serviço - Oficina</h1>
-                    
-                    <div className="bg-white p-6 rounded-lg shadow-md mb-6">
-                        <h2 className="text-xl font-semibold mb-4">Listagem de O.S.</h2>
-                        {osList.length === 0 ? (
-                            <p className="text-gray-500">Nenhuma O.S. cadastrada ainda.</p>
-                        ) : (
-                            <ul className="divide-y divide-gray-200">
-                                {osList.map(os => (
-                                    <li key={os.id} className="py-4">
-                                        <span className="font-medium">{os.cliente || "Sem nome"}</span> - 
-                                        <span className="text-gray-600"> {os.servico || "Sem serviço"}</span>
-                                    </li>
-                                ))}
-                            </ul>
-                        )}
-                    </div>
-                </div>
+            // Criando elementos sem o formato <div /> (isso é React puro)
+            return React.createElement('div', { className: 'p-6 max-w-4xl mx-auto' },
+                React.createElement('h1', { className: 'text-3xl font-bold text-gray-800 mb-6' }, 'Sistema Oficina'),
+                React.createElement('div', { className: 'bg-white p-6 rounded-lg shadow-md' },
+                    React.createElement('h2', { className: 'text-xl font-semibold mb-4' }, 'Listagem de O.S.'),
+                    osList.length === 0 
+                        ? React.createElement('p', { className: 'text-gray-500' }, 'Nenhuma O.S. cadastrada ainda.')
+                        : React.createElement('ul', { className: 'divide-y divide-gray-200' },
+                            osList.map(os => 
+                                React.createElement('li', { key: os.id, className: 'py-4' }, 
+                                    os.cliente || "Sem nome"
+                                )
+                            )
+                        )
+                )
             );
         }
 
+        // 3. Renderização
         const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App />);
+        root.render(React.createElement(App));
     </script>
 </body>
 </html>
