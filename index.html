@@ -2,44 +2,19 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <title>Sistema Oficina</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+    <title>Teste Final de Conectividade</title>
 </head>
-<body class="bg-gray-100">
-    <div id="root"></div>
+<body style="background-color: #f3f4f6; font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh;">
+    
+    <div style="background: white; padding: 2rem; border-radius: 1rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+        <h1 id="titulo" style="color: blue;">Carregando...</h1>
+    </div>
 
     <script>
-        // Configuração
-        const firebaseConfig = {
-            apiKey: "AIzaSyAqGohWqv5OIWVzSlwtBtoRSOpVzut5Cuc",
-            authDomain: "os-oficina-c3518.firebaseapp.com",
-            projectId: "os-oficina-c3518",
-            storageBucket: "os-oficina-c3518.firebasestorage.app",
-            messagingSenderId: "294943712762",
-            appId: "1:294943712762:web:c8cd4f38ef363020eab043"
-        };
-
-        if (!firebase.apps.length) {
-            firebase.initializeApp(firebaseConfig);
-        }
-
-        // Função para criar o componente sem JSX (sem Babel)
-        function App() {
-            return React.createElement('div', { className: 'flex h-screen items-center justify-center' },
-                React.createElement('div', { className: 'bg-white p-8 rounded-xl shadow-lg' },
-                    React.createElement('h1', { className: 'text-2xl font-bold text-blue-600' }, 'Sistema Oficina'),
-                    React.createElement('p', { className: 'text-gray-600 mt-2' }, 'Rodando sem Babel! Agora não deve haver erro.')
-                )
-            );
-        }
-
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(React.createElement(App));
+        // JS Puro, sem dependências, sem React, sem Babel
+        console.log("Script rodando!");
+        document.getElementById('titulo').innerText = "O SISTEMA ESTÁ RODANDO!";
+        document.body.style.backgroundColor = "#dcfce7"; // Fundo verde se rodar
     </script>
 </body>
 </html>
